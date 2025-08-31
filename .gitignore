@@ -1,15 +1,56 @@
+## OS/Editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.orig
+*.rej
+
+## IDE
 *.iml
-.gradle
-/local.properties
+.vscode/
+.idea/
+# Optional shared settings (uncomment to include)
+#!.idea/codeStyles/
+#!.idea/runConfigurations/
+#!.idea/inspectionProfiles/
+
+## Gradle
+.gradle/
+build/
+**/build/
+.kotlinc/
+.kotlin/
+
+## Android/NDK
+local.properties
 /.idea/caches
 /.idea/libraries
 /.idea/modules.xml
 /.idea/workspace.xml
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-local.properties
+.externalNativeBuild/
+.cxx/
+captures/
+
+## Artifacts
+*.apk
+*.ap_
+*.aab
+*.aar
+
+## Logs
+*.log
+
+## Keys/Signing (keep local)
+*.jks
+*.keystore
+*.pem
+*.p12
+
+## Gradle wrapper (keep tracked)
+!gradlew
+!gradlew.bat
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
