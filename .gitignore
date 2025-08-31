@@ -1,0 +1,72 @@
+# .gitignore (kopieren)                                                                                                                                                                                                             
+                                                                                                                                                                                                                                    
+# OS/Editor                                                                                                                                                                                                                         
+                                                                                                                                                                                                                                    
+.DS_Store                                                                                                                                                                                                                           
+Thumbs.db                                                                                                                                                                                                                           
+*.swp                                                                                                                                                                                                                               
+*.swo                                                                                                                                                                                                                               
+*.orig                                                                                                                                                                                                                              
+*.rej                                                                                                                                                                                                                               
+                                                                                                                                                                                                                                    
+# IDE                                                                                                                                                                                                                               
+                                                                                                                                                                                                                                    
+*.iml                                                                                                                                                                                                                               
+.vscode/                                                                                                                                                                                                                            
+.idea/                                                                                                                                                                                                                              
+                                                                                                                                                                                                                                    
+# Optional: diese drei Ordner aus .idea behalten (falls gewünscht), sonst die folgenden 6 Zeilen löschen                                                                                                                            
+                                                                                                                                                                                                                                    
+!.idea/codeStyles/                                                                                                                                                                                                                  
+!.idea/codeStyles/*                                                                                                                                                                                                                 
+!.idea/runConfigurations/                                                                                                                                                                                                           
+!.idea/runConfigurations/*                                                                                                                                                                                                          
+!.idea/inspectionProfiles/                                                                                                                                                                                                          
+!.idea/inspectionProfiles/*                                                                                                                                                                                                         
+                                                                                                                                                                                                                                    
+# Gradle                                                                                                                                                                                                                            
+                                                                                                                                                                                                                                    
+.gradle/                                                                                                                                                                                                                            
+build/                                                                                                                                                                                                                              
+**/build/                                                                                                                                                                                                                           
+                                                                                                                                                                                                                                    
+# Kotlin/Gradle Caches                                                                                                                                                                                                              
+                                                                                                                                                                                                                                    
+.kotlinc/                                                                                                                                                                                                                           
+.kotlin/                                                                                                                                                                                                                            
+                                                                                                                                                                                                                                    
+# Wrapper unbedingt versionieren (nicht ignorieren)                                                                                                                                                                                 
+                                                                                                                                                                                                                                    
+!gradlew                                                                                                                                                                                                                            
+!gradlew.bat                                                                                                                                                                                                                        
+!gradle/wrapper/gradle-wrapper.jar                                                                                                                                                                                                  
+!gradle/wrapper/gradle-wrapper.properties                                                                                                                                                                                           
+                                                                                                                                                                                                                                    
+# Android/NDK                                                                                                                                                                                                                       
+                                                                                                                                                                                                                                    
+local.properties                                                                                                                                                                                                                    
+.cxx/                                                                                                                                                                                                                               
+.externalNativeBuild/                                                                                                                                                                                                               
+captures/                                                                                                                                                                                                                           
+                                                                                                                                                                                                                                    
+# Packages/Artifacts                                                                                                                                                                                                                
+*.apk
+*.ap_
+*.aab
+*.aar
+
+# Logs
+
+*.log
+
+# Keys/Signing (lokal halten)
+
+*.jks
+*.keystore
+*.pem
+*.p12
+
+# Misc
+
+fastlane/report.xml
+fastlane/Preview.html
