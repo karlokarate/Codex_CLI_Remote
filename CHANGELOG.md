@@ -9,6 +9,7 @@ All notable changes to this project are documented here. This file is maintained
   - Manifest now uses `@string/app_name`.
   - `app_name` updated to "Codex CLI Remote".
   - Top bar title reads from `R.string.app_name` (Compose `stringResource`).
+ - Gradle root project renamed to `Codex_CLI_Remote` to align with GitHub repo name.
 
 ### Why
 - Align with canonical naming in AGENTS.md/ROADMAP and user request.
@@ -16,4 +17,3 @@ All notable changes to this project are documented here. This file is maintained
 ### How tested
 - Grepped sources to remove old labels ("M3uSuite Remote", "Codex Remote").
 - Local build recommended via `./gradlew :app:assembleDebug`.
-
