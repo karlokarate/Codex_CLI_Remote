@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest package="de.m3usuite.remote"
+    xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Netzwerk -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!-- Optional für Multicast-Empfang (Discovery/UPnP/MDNS).
+         WOL-Senden braucht das nicht. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
+    <!-- Optional, wenn Benachrichtigungen genutzt werden (Android 13+) -->
+    <!-- <uses-permission android:name="android.permission.POST_NOTIFICATIONS" /> -->
+
+    <application
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:usesCleartextTraffic="true"
+        android:theme="@android:style/Theme.DeviceDefault.DayNight.NoActionBar">
+
+        <!-- Launcher Activity -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+
+        <!-- Hinweis: keine Foreground-Service-Types/Permissions vorerst.
+             Für Android 14+ sind für FGS spezifische Type+Permission nötig.
+             Wir bevorzugen WorkManager, um Play-Review-Reibung zu vermeiden. -->
+    </application>
+</manifest>
