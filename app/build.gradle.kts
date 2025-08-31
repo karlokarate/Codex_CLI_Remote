@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "de.m3usuite.remote"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "de.m3usuite.remote"
