@@ -10,9 +10,10 @@ All notable changes to this project are documented here. This file is maintained
   - `app_name` updated to "Codex CLI Remote".
   - Top bar title reads from `R.string.app_name` (Compose `stringResource`).
  - Gradle root project renamed to `Codex_CLI_Remote` to align with GitHub repo name.
- - Move Android res backups to `app/src/main/res_backups` to avoid aapt merge errors.
- - Bump `compileSdk` to 36 to satisfy androidx.core 1.17.0 AAR metadata.
- - Remove deprecated `package` attribute from `AndroidManifest.xml` (namespace is defined in Gradle).
+- Move Android res backups to `app/src/main/res_backups` to avoid aapt merge errors.
+- Bump `compileSdk` to 36 to satisfy androidx.core 1.17.0 AAR metadata.
+- Remove deprecated `package` attribute from `AndroidManifest.xml` (namespace is defined in Gradle).
+ - Set manifest theme to app style `@style/Theme.CodexRemote` instead of a framework theme not present on all API levels.
 
 ### Why
 - Align with canonical naming in AGENTS.md/ROADMAP and user request.
