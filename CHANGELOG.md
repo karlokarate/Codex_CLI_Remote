@@ -14,7 +14,14 @@ All notable changes to this project are documented here. This file is maintained
 - Bump `compileSdk` to 36 to satisfy androidx.core 1.17.0 AAR metadata.
 - Remove deprecated `package` attribute from `AndroidManifest.xml` (namespace is defined in Gradle).
 - Set manifest theme to app style `@style/Theme.CodexRemote` instead of a framework theme not present on all API levels.
- - Add Gradle packaging exclusion for `META-INF/versions/9/OSGI-INF/MANIFEST.MF` to resolve MergeJavaRes duplicates from BouncyCastle/jspecify.
+- Add Gradle packaging exclusion for `META-INF/versions/9/OSGI-INF/MANIFEST.MF` to resolve MergeJavaRes duplicates from BouncyCastle/jspecify.
+
+### Added
+- First-run Setup Wizard tab with checklist steps, copyable PC setup commands, tests (TCP:22 reachability, SSH WSL status), and persistent checkboxes with reset.
+- Help popups on Setup fields triggered on focus (toggleable).
+
+### Fixed
+- Kotlin compile: file-level opt-in for `ExperimentalMaterial3Api` to allow usage of Material3 components (TopAppBar/AssistChip) without warnings-as-errors.
 
 ### Why
 - Align with canonical naming in AGENTS.md/ROADMAP and user request.

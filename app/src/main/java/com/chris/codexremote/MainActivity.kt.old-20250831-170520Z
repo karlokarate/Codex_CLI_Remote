@@ -1,0 +1,260 @@
+package com.chris.codexremote
+
+import android.content.Context
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
+import androidx.datastore.preferences.core.*
+import androidx.datastore.preferences.preferencesDataStore
+import de.m3usuite.remote.R
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.logging.HttpLoggingInterceptor
+import net.schmizz.sshj.SSHClient
+import net.schmizz.sshj.transport.verification.PromiscuousVerifier
+import timber.log.Timber
+import java.net.DatagramPacket
+import java.net.DatagramSocket
+import java.net.InetAddress
+
+// DataStore
+private val Context.dataStore by preferencesDataStore("m3usuite_remote")
+
+// Keys
+private object Prefs {
+    val SSH_HOST = stringPreferencesKey("ssh_host")
+    val SSH_USER = stringPreferencesKey("ssh_user")
+    val SSH_PASS = stringPreferencesKey("ssh_pass") // TODO: später verschlüsseln
+    val PC_MAC   = stringPreferencesKey("pc_mac")
+    val WOL_BCAST = stringPreferencesKey("wol_bcast")
+    val WOL_PORT  = intPreferencesKey("wol_port")
+    val FB_HOST   = stringPreferencesKey("fb_host")
+    val FB_USER   = stringPreferencesKey("fb_user")
+    val FB_PASS   = stringPreferencesKey("fb_pass") // TODO: später verschlüsseln
+}
+
+class MainActivity : ComponentActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Timber initialisieren (einfach)
+        Timber.plant(Timber.DebugTree())
+
+        setContent {
+            MaterialTheme {
+                AppScaffold()
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AppScaffold() {
+    val tabs = listOf("Setup", "Terminal")
+    var selectedTab by remember { mutableStateOf(0) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.app_name)) }
+            )
+        },
+        bottomBar = {
+            NavigationBar {
+                tabs.forEachIndexed { i, title ->
+                    NavigationBarItem(
+                        selected = selectedTab == i,
+                        onClick = { selectedTab = i },
+                        icon = { },
+                        label = { Text(title) }
+                    )
+                }
+            }
+        }
+    ) { padding ->
+        Box(Modifier.padding(padding)) {
+            when (selectedTab) {
+                0 -> SetupScreen()
+                1 -> TerminalScreen()
+            }
+        }
+    }
+}
+
+@Composable
+private fun SetupScreen() {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // Explizite Default-Werte statt heterogenem mapOf (verursachte Typprobleme)
+    val defaultSshHost = remember { "192.168.178.20" }
+    val defaultSshUser = remember { "user" }
+    val defaultPcMac = remember { "00:11:22:33:44:55" }
+    val defaultWolBcast = remember { "192.168.178.255" }
+    val defaultWolPort = remember { 9 }
+    val defaultFbHost = remember { "http://192.168.178.1:49000" }
+    val defaultFbUser = remember { "fritzuser" }
+
+    // State laden
+    val settingsFlow = ctx.dataStore.data.map { prefs ->
+        SetupState(
+            sshHost = prefs[Prefs.SSH_HOST] ?: defaultSshHost,
+            sshUser = prefs[Prefs.SSH_USER] ?: defaultSshUser,
+            sshPass = prefs[Prefs.SSH_PASS] ?: "",
+            pcMac   = prefs[Prefs.PC_MAC]   ?: defaultPcMac,
+            wolBcast= prefs[Prefs.WOL_BCAST]?: defaultWolBcast,
+            wolPort = prefs[Prefs.WOL_PORT] ?: defaultWolPort,
+            fbHost  = prefs[Prefs.FB_HOST]  ?: defaultFbHost,
+            fbUser  = prefs[Prefs.FB_USER]  ?: defaultFbUser,
+            fbPass  = prefs[Prefs.FB_PASS]  ?: ""
+        )
+    }
+
+    val state by settingsFlow.collectAsState(initial = SetupState())
+
+    // Editierbarer State
+    var sshHost by remember { mutableStateOf(state.sshHost) }
+    var sshUser by remember { mutableStateOf(state.sshUser) }
+    var sshPass by remember { mutableStateOf(state.sshPass) }
+    var pcMac   by remember { mutableStateOf(state.pcMac) }
+    var wolB    by remember { mutableStateOf(state.wolBcast) }
+    var wolPort by remember { mutableStateOf(state.wolPort) }
+    var fbHost  by remember { mutableStateOf(state.fbHost) }
+    var fbUser  by remember { mutableStateOf(state.fbUser) }
+    var fbPass  by remember { mutableStateOf(state.fbPass) }
+
+    val scroll = rememberScrollState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scroll)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Remote‑Setup", style = MaterialTheme.typography.titleLarge)
+
+        // SSH
+        OutlinedTextField(sshHost, { sshHost = it }, label = { Text("SSH Host / IP") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(sshUser, { sshUser = it }, label = { Text("SSH Benutzer") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(sshPass, { sshPass = it }, label = { Text("SSH Passwort") },
+            visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+
+        // WOL
+        OutlinedTextField(pcMac, { pcMac = it }, label = { Text("PC MAC (WOL)") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(wolB, { wolB = it }, label = { Text("Broadcast IP (WOL)") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(wolPort.toString(), {
+            wolPort = it.toIntOrNull() ?: 9
+        }, label = { Text("WOL Port") }, modifier = Modifier.fillMaxWidth())
+
+        // Fritz!Box TR-064
+        OutlinedTextField(fbHost, { fbHost = it }, label = { Text("Fritz!Box TR‑064 Base (z. B. http://192.168.178.1:49000)") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(fbUser, { fbUser = it }, label = { Text("Fritz!Box Benutzer") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(fbPass, { fbPass = it }, label = { Text("Fritz!Box Passwort") },
+            visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(onClick = {
+                scope.launch {
+                    savePrefs(ctx, sshHost, sshUser, sshPass, pcMac, wolB, wolPort, fbHost, fbUser, fbPass)
+                    Timber.i("Gespeichert.")
+                }
+            }) { Text("Speichern") }
+
+            Button(onClick = {
+                scope.launch {
+                    try {
+                        sendWakeOnLan(pcMac, wolB, wolPort)
+                        Timber.i("WOL gesendet an $pcMac via $wolB:$wolPort")
+                    } catch (t: Throwable) {
+                        Timber.e(t, "WOL fehlgeschlagen")
+                    }
+                }
+            }) { Text("PC aufwecken (WOL)") }
+        }
+
+        Button(onClick = {
+            scope.launch {
+                // TR-064 Wake (Digest-Auth TODO – siehe Kommentar in Funktion)
+                try {
+                    val ok = fritzWakeOnLanByMac(fbBaseUrl = fbHost, username = fbUser, password = fbPass, mac = pcMac)
+                    Timber.i("TR‑064 Wake result: $ok")
+                } catch (t: Throwable) {
+                    Timber.e(t, "TR‑064 Wake fehlgeschlagen")
+                }
+            }
+        }) { Text("PC aufwecken (Fritz!Box TR‑064)") }
+    }
+}
+
+@Composable
+private fun TerminalScreen() {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var out by remember { mutableStateOf("") }
+    var cmd by remember { mutableStateOf("wsl.exe -l -v") } // Beispiel: Windows-SSH -> prüft WSL
+
+    val settingsFlow = ctx.dataStore.data.map { prefs ->
+        Triple(
+            prefs[Prefs.SSH_HOST] ?: "",
+            prefs[Prefs.SSH_USER] ?: "",
+            prefs[Prefs.SSH_PASS] ?: ""
+        )
+    }
+    // Korrekte Nutzung: erst State sammeln, dann Triple entpacken
+    val credsState by settingsFlow.collectAsState(initial = Triple("", "", ""))
+    val (host, user, pass) = credsState
+
+    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Terminal (SSH‑Einzelbefehl)", style = MaterialTheme.typography.titleLarge)
+        Text("Host: $host – User: $user")
+
+        OutlinedTextField(cmd, { cmd = it }, label = { Text("Befehl") }, modifier = Modifier.fillMaxWidth())
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(onClick = {
+                scope.launch {
+                    out += "\n$ $cmd\n"
+                    val res = runCatching { sshExec(host, user, pass, cmd) }.getOrElse {
+                        out += "[Fehler] ${it.message}\n"
+                        Timber.e(it)
+                        return@launch
+                    }
+                    out += res + "\n"
+                }
+            }) { Text("Ausführen") }
+
+            Button(onClick = { out = "" }) { Text("Clear") }
+        }
+
+        HorizontalDivider()
+        Text(out)
+    }
+}
+
+// ---------- Persistenz ----------
+private suspend fun savePrefs(
+    ctx: Context,
+    sshHost: String, sshUser: String, sshPass: String,
+    pcMac: String, wolBcast: String, wolPort: Int,
+    fbHost: String, fbUser: String, fbPass: String
+) {
+    ctx.dataStore.edit { p ->
+        p[Prefs.SSH_HOST] = sshHost
+        p[Prefs.SSH_USER] = sshUser
+        p[Prefs.SSH_PASS] = sshPass
+        p[Prefs.PC_MAC]   = pcMac

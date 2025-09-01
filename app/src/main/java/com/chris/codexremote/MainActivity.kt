@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.chris.codexremote
 
 import android.content.Context
@@ -8,16 +9,22 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import de.m3usuite.remote.R
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -30,6 +37,8 @@ import timber.log.Timber
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.Socket
 
 // DataStore
 private val Context.dataStore by preferencesDataStore("m3usuite_remote")
@@ -45,6 +54,9 @@ private object Prefs {
     val FB_HOST   = stringPreferencesKey("fb_host")
     val FB_USER   = stringPreferencesKey("fb_user")
     val FB_PASS   = stringPreferencesKey("fb_pass") // TODO: später verschlüsseln
+    val WIZARD_DONE = stringSetPreferencesKey("wizard_done")
+    val WIZARD_DISMISSED = booleanPreferencesKey("wizard_dismissed")
+    val SETUP_HELP_ENABLED = booleanPreferencesKey("setup_help_enabled")
 }
 
 class MainActivity : ComponentActivity() {
@@ -62,11 +74,12 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AppScaffold() {
-    val tabs = listOf("Setup", "Terminal")
-    var selectedTab by remember { mutableStateOf(0) }
+    val tabs = listOf("Wizard", "Setup", "Terminal")
+    val ctx = LocalContext.current
+    val wizardDismissed by ctx.dataStore.data.map { it[Prefs.WIZARD_DISMISSED] ?: false }.collectAsState(initial = false)
+    var selectedTab by remember { mutableStateOf(if (wizardDismissed) 1 else 0) }
 
     Scaffold(
         topBar = {
@@ -89,8 +102,9 @@ private fun AppScaffold() {
     ) { padding ->
         Box(Modifier.padding(padding)) {
             when (selectedTab) {
-                0 -> SetupScreen()
-                1 -> TerminalScreen()
+                0 -> WizardScreen()
+                1 -> SetupScreen()
+                2 -> TerminalScreen()
             }
         }
     }
@@ -108,6 +122,7 @@ private fun SetupScreen() {
     val defaultWolPort = remember { 9 }
     val defaultFbHost = remember { "http://192.168.178.1:49000" }
     val defaultFbUser = remember { "fritzuser" }
+    val helpEnabled by ctx.dataStore.data.map { it[Prefs.SETUP_HELP_ENABLED] ?: true }.collectAsState(initial = true)
 
     // State laden
     val settingsFlow = ctx.dataStore.data.map { prefs ->
@@ -138,6 +153,7 @@ private fun SetupScreen() {
     var fbPass  by remember { mutableStateOf(state.fbPass) }
 
     val scroll = rememberScrollState()
+    var helpForField by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
@@ -147,25 +163,52 @@ private fun SetupScreen() {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("Remote‑Setup", style = MaterialTheme.typography.titleLarge)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = helpEnabled, onCheckedChange = {
+                scope.launch { ctx.dataStore.edit { p -> p[Prefs.SETUP_HELP_ENABLED] = it } }
+            })
+            Spacer(Modifier.width(8.dp))
+            Text("Hilfetexte bei Feld-Fokus anzeigen")
+        }
 
         // SSH
-        OutlinedTextField(sshHost, { sshHost = it }, label = { Text("SSH Host / IP") }, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(sshUser, { sshUser = it }, label = { Text("SSH Benutzer") }, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(sshPass, { sshPass = it }, label = { Text("SSH Passwort") },
-            visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(
+            sshHost, { sshHost = it }, label = { Text("SSH Host / IP") },
+            modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused && helpEnabled) helpForField = "ssh_host" }
+        )
+        OutlinedTextField(
+            sshUser, { sshUser = it }, label = { Text("SSH Benutzer") },
+            modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused && helpEnabled) helpForField = "ssh_user" }
+        )
+        OutlinedTextField(
+            sshPass, { sshPass = it }, label = { Text("SSH Passwort") },
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused && helpEnabled) helpForField = "ssh_pass" }
+        )
 
         // WOL
-        OutlinedTextField(pcMac, { pcMac = it }, label = { Text("PC MAC (WOL)") }, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(wolB, { wolB = it }, label = { Text("Broadcast IP (WOL)") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(pcMac, { pcMac = it }, label = { Text("PC MAC (WOL)") },
+            modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused && helpEnabled) helpForField = "pc_mac" })
+        OutlinedTextField(wolB, { wolB = it }, label = { Text("Broadcast IP (WOL)") },
+            modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused && helpEnabled) helpForField = "wol_bcast" })
         OutlinedTextField(wolPort.toString(), {
             wolPort = it.toIntOrNull() ?: 9
-        }, label = { Text("WOL Port") }, modifier = Modifier.fillMaxWidth())
+        }, label = { Text("WOL Port") }, modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused && helpEnabled) helpForField = "wol_port" })
 
         // Fritz!Box TR-064
-        OutlinedTextField(fbHost, { fbHost = it }, label = { Text("Fritz!Box TR‑064 Base (z. B. http://192.168.178.1:49000)") }, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(fbUser, { fbUser = it }, label = { Text("Fritz!Box Benutzer") }, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(fbPass, { fbPass = it }, label = { Text("Fritz!Box Passwort") },
-            visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(
+            fbHost, { fbHost = it }, label = { Text("Fritz!Box TR‑064 Base (z. B. http://192.168.178.1:49000)") },
+            modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused && helpEnabled) helpForField = "fb_host" }
+        )
+        OutlinedTextField(
+            fbUser, { fbUser = it }, label = { Text("Fritz!Box Benutzer") },
+            modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused && helpEnabled) helpForField = "fb_user" }
+        )
+        OutlinedTextField(
+            fbPass, { fbPass = it }, label = { Text("Fritz!Box Passwort") },
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused && helpEnabled) helpForField = "fb_pass" }
+        )
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = {
@@ -199,7 +242,165 @@ private fun SetupScreen() {
             }
         }) { Text("PC aufwecken (Fritz!Box TR‑064)") }
     }
+    // Help Dialogs
+    if (helpForField != null) {
+        val (title, body) = when (helpForField) {
+            "pc_mac" -> "PC MAC (WOL)" to "Windows: PowerShell → getmac /v. Format 00:11:22:33:44:55."
+            "wol_bcast" -> "Broadcast IP" to "Meist .255 des Subnetzes (z. B. 192.168.178.255)."
+            "wol_port" -> "WOL Port" to "Standard 9 (oder 7)."
+            "ssh_host" -> "SSH Host/IP" to "Windows: ipconfig → IPv4-Adresse. Alternativ Hostname."
+            "ssh_user" -> "SSH Benutzer" to "Windows-Benutzername des OpenSSH-Servers."
+            "ssh_pass" -> "SSH Passwort" to "Passwort des obigen Benutzers. Später besser: Key-Auth."
+            "fb_host" -> "FRITZ!Box TR-064 Base" to "z. B. http://192.168.178.1:49000 (TR‑064 aktivieren)."
+            "fb_user" -> "FRITZ!Box Benutzer" to "System → FRITZ!Box-Benutzer."
+            "fb_pass" -> "FRITZ!Box Passwort" to "Passwort des FRITZ!Box-Benutzers."
+            else -> "Hilfe" to ""
+        }
+        AlertDialog(
+            onDismissRequest = { helpForField = null },
+            title = { Text(title) },
+            text = { Text(body) },
+            confirmButton = { TextButton(onClick = { helpForField = null }) { Text("OK") } }
+        )
+    }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun WizardScreen() {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboardManager.current
+
+    val doneSet by ctx.dataStore.data.map { it[Prefs.WIZARD_DONE] ?: emptySet() }.collectAsState(initial = emptySet())
+    val dismissed by ctx.dataStore.data.map { it[Prefs.WIZARD_DISMISSED] ?: false }.collectAsState(initial = false)
+    val steps = remember { wizardSteps() }
+
+    Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text("PC‑Ersteinrichtung (Schritt für Schritt)", style = MaterialTheme.typography.titleLarge)
+        if (!dismissed) {
+            AssistChip(onClick = {}, label = { Text("Hinweis: Checkliste für PC‑Vorbereitung.") }, enabled = false)
+        }
+        steps.forEach { s ->
+            val isDone = doneSet.contains(s.id)
+            ElevatedCard {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = isDone, onCheckedChange = { checked ->
+                            scope.launch { ctx.dataStore.edit { p ->
+                                val set = (p[Prefs.WIZARD_DONE] ?: emptySet()).toMutableSet()
+                                if (checked) set.add(s.id) else set.remove(s.id)
+                                p[Prefs.WIZARD_DONE] = set
+                            } }
+                        })
+                        Spacer(Modifier.width(8.dp))
+                        Text(s.title, style = MaterialTheme.typography.titleMedium)
+                    }
+                    Text(s.description)
+                    if (s.commands.isNotEmpty()) {
+                        Text("Befehle (Reihenfolge):", style = MaterialTheme.typography.labelLarge)
+                        s.commands.forEach { cmd ->
+                            Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small) {
+                                Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(cmd, fontFamily = FontFamily.Monospace)
+                                    TextButton(onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(cmd)) }) { Text("Copy") }
+                                }
+                            }
+                        }
+                    }
+                    if (s.test != null) {
+                        var out by remember { mutableStateOf<String?>(null) }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = {
+                                scope.launch {
+                                    out = "… läuft …"
+                                    out = runCatching { s.test.invoke(ctx) }.getOrElse { "Fehler: ${it.message}" }
+                                }
+                            }) { Text("Testen") }
+                            if (out != null) Text(out!!)
+                        }
+                    }
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(onClick = { scope.launch { ctx.dataStore.edit { it[Prefs.WIZARD_DONE] = emptySet() } } }) { Text("Reset (alle Schritte)") }
+            OutlinedButton(onClick = { scope.launch { ctx.dataStore.edit { it[Prefs.WIZARD_DISMISSED] = true } } }) { Text("Nicht mehr automatisch anzeigen") }
+        }
+    }
+}
+
+private data class WizardStep(
+    val id: String,
+    val title: String,
+    val description: String,
+    val commands: List<String> = emptyList(),
+    val test: (suspend (Context) -> String)? = null
+)
+
+private fun wizardSteps(): List<WizardStep> = listOf(
+    WizardStep(
+        id = "win_openssh",
+        title = "Windows: OpenSSH‑Server installieren",
+        description = "Aktiviere den Windows OpenSSH‑Server und starte den Dienst.",
+        commands = listOf(
+            "powershell (als Admin):",
+            "Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0",
+            "Start-Service sshd",
+            "Set-Service -Name sshd -StartupType 'Automatic'"
+        ),
+        test = { ctx ->
+            val host = ctx.dataStore.data.map { it[Prefs.SSH_HOST] ?: "" }.first()
+            if (host.isBlank()) {
+                "SSH Host fehlt (im Setup eintragen)"
+            } else {
+                val ok = testTcpPort(host, 22, 3000)
+                if (ok) "Port 22 erreichbar" else "Port 22 nicht erreichbar"
+            }
+        }
+    ),
+    WizardStep(
+        id = "wsl_status",
+        title = "WSL prüfen (optional)",
+        description = "Prüfe WSL Status per SSH. Setze optional DefaultShell=WSL später.",
+        commands = listOf(
+            "Windows (optional): 'wsl --install' falls nicht vorhanden",
+            "WSL: 'sudo apt update && sudo apt install -y tmux'",
+            "WSL: Alias 'cdx' → echo 'alias cdx=\"cd ~/codex_remote && tmux new -A -s codex\"' >> ~/.bashrc"
+        ),
+        test = { ctx ->
+            val triple = ctx.dataStore.data.map { Triple(it[Prefs.SSH_HOST]?:"", it[Prefs.SSH_USER]?:"", it[Prefs.SSH_PASS]?:"") }.first()
+            val (h,u,p) = triple
+            if (h.isBlank()||u.isBlank()) {
+                "SSH Host/User fehlen (Setup)"
+            } else {
+                runCatching { sshExec(h,u,p, "wsl.exe --status") }.fold(
+                    onSuccess = { (if (it.length>120) it.take(120)+"…" else it).ifBlank { "OK (kein Output)" } },
+                    onFailure = { "Fehler: ${it.message}" }
+                )
+            }
+        }
+    ),
+    WizardStep(
+        id = "folder_repo",
+        title = "Ordner und Autostart vorbereiten",
+        description = "Erzeuge '~/codex_remote' und richte tmux‑Autostart ein.",
+        commands = listOf(
+            "WSL: mkdir -p ~/codex_remote",
+            "WSL: echo 'alias cdx=\"cd ~/codex_remote && tmux new -A -s codex\"' >> ~/.bashrc"
+        )
+    ),
+    WizardStep(
+        id = "wol_bios",
+        title = "WOL aktivieren (BIOS/NIC)",
+        description = "Aktiviere 'Wake on LAN' im BIOS/UEFI und im Windows Gerätemanager (Erweiterte Einstellungen der NIC).",
+        commands = listOf("Hinweis: Kein direkter Test möglich; sende WOL aus der App und prüfe Aufwachen.")
+    )
+)
+
+private fun testTcpPort(host: String, port: Int, timeoutMs: Int): Boolean = try {
+    Socket().use { s -> s.connect(InetSocketAddress(host, port), timeoutMs); true }
+} catch (_: Throwable) { false }
 
 @Composable
 private fun TerminalScreen() {
