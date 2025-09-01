@@ -1,4 +1,4 @@
-package de.m3usuite.remote
+package com.chris.codexremote
 
 import android.content.Context
 import android.os.Bundle
@@ -16,6 +16,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import de.m3usuite.remote.R
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaType
@@ -51,7 +52,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Timber initialisieren (einfach)
-        Timber.plant(timber.log.Timber.DebugTree())
+        Timber.plant(Timber.DebugTree())
 
         setContent {
             MaterialTheme {
@@ -61,6 +62,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AppScaffold() {
     val tabs = listOf("Setup", "Terminal")
@@ -239,7 +241,7 @@ private fun TerminalScreen() {
             Button(onClick = { out = "" }) { Text("Clear") }
         }
 
-        Divider()
+        HorizontalDivider()
         Text(out)
     }
 }
@@ -310,7 +312,7 @@ private fun sendWakeOnLan(mac: String, broadcastIp: String = "255.255.255.255", 
  *    Für echte Produktion bitte mit einem Digest‑Authenticator ergänzen oder HTTPS + Session‑Login verwenden.
  *  - Die Action ist im AVM‑Dokument "TR‑064 – First Steps" gelistet (Kapitel "Service Hosts"). :contentReference[oaicite:23]{index=23}
  */
-private suspend fun fritzWakeOnLanByMac(
+private fun fritzWakeOnLanByMac(
     fbBaseUrl: String,
     username: String,
     password: String,
@@ -358,7 +360,7 @@ private suspend fun fritzWakeOnLanByMac(
 }
 
 // ---------- SSH (Einzelbefehl) ----------
-private suspend fun sshExec(host: String, user: String, pass: String, command: String): String {
+private fun sshExec(host: String, user: String, pass: String, command: String): String {
     require(host.isNotBlank()) { "SSH Host fehlt" }
     val ssh = SSHClient().apply {
         // TODO: In Produktion Host Keys verifizieren!

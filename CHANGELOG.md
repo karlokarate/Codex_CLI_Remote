@@ -13,7 +13,8 @@ All notable changes to this project are documented here. This file is maintained
 - Move Android res backups to `app/src/main/res_backups` to avoid aapt merge errors.
 - Bump `compileSdk` to 36 to satisfy androidx.core 1.17.0 AAR metadata.
 - Remove deprecated `package` attribute from `AndroidManifest.xml` (namespace is defined in Gradle).
- - Set manifest theme to app style `@style/Theme.CodexRemote` instead of a framework theme not present on all API levels.
+- Set manifest theme to app style `@style/Theme.CodexRemote` instead of a framework theme not present on all API levels.
+ - Add Gradle packaging exclusion for `META-INF/versions/9/OSGI-INF/MANIFEST.MF` to resolve MergeJavaRes duplicates from BouncyCastle/jspecify.
 
 ### Why
 - Align with canonical naming in AGENTS.md/ROADMAP and user request.
